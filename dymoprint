@@ -55,6 +55,8 @@ import termios
 import textwrap
 from ConfigParser import SafeConfigParser
 
+import barcode
+import barcode.writer
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 try:
@@ -228,6 +230,9 @@ class DymoLabeler:
         print response
 
 
+PATH = os.path.dirname(os.path.abspath(__file__))
+FONT = os.path.join(PATH, 'DejaVuSansMono.ttf')
+
 if USE_BARCODE:
 
     def mm2px(mm, dpi=25.4):
@@ -235,70 +240,21 @@ if USE_BARCODE:
 
     class ImageWriter(barcode.writer.BaseWriter):
         def __init__(self):
-            barcode.writer.BaseWriter.__init__(
-                self, self._init, self._paint_module, None, self._finish)
+            barcode.writer.BaseWriter.__init__(self, self._init,
+                                               self._paint_module,
+                                               self._paint_text, self._finish)
             self.format = 'PNG'
             self.dpi = 25.4
             self._image = None
             self._draw = None
             self.vertical_margin = 0
 
-        def calculate_size(self, modules_per_line, number_of_lines, dpi=25.4):
+        def calculate_size(self, modules_per_line, number_of_lines, dpi=300):
             width = 2 * self.quiet_zone + modules_per_line * self.module_width
-            height = self.vertical_margin * 2 + self.module_height * number_of_lines
+            height = 2.0 + self.module_height * number_of_lines
+            if self.font_size and self.text:
+                height += self.font_size * 1.5 + self.text_distance
             return int(mm2px(width, dpi)), int(mm2px(height, dpi))
-
-        def render(self, code):
-            """Renders the barcode to whatever the inheriting writer provides,
-            using the registered callbacks.
-
-            :parameters:
-                code : List
-                    List of strings matching the writer spec
-                    (only contain 0 or 1).
-            """
-            if self._callbacks['initialize'] is not None:
-                self._callbacks['initialize'](code)
-            ypos = self.vertical_margin
-            for cc, line in enumerate(code):
-                """
-                Pack line to list give better gfx result, otherwise in can
-                result in aliasing gaps
-                '11010111' -> [2, -1, 1, -1, 3]
-                """
-                line += ' '
-                c = 1
-                mlist = []
-                for i in range(0, len(line) - 1):
-                    if line[i] == line[i + 1]:
-                        c += 1
-                    else:
-                        if line[i] == "1":
-                            mlist.append(c)
-                        else:
-                            mlist.append(-c)
-                        c = 1
-                # Left quiet zone is x startposition
-                xpos = self.quiet_zone
-                bxs = xpos  # x start of barcode
-                for mod in mlist:
-                    if mod < 1:
-                        color = self.background
-                    else:
-                        color = self.foreground
-                    # remove painting for background colored tiles?
-                    self._callbacks['paint_module'](
-                        xpos, ypos, self.module_width * abs(mod), color)
-                    xpos += self.module_width * abs(mod)
-                bxe = xpos
-                # Add right quiet zone to every line, except last line,
-                # quiet zone already provided with background,
-                # should it be removed complety?
-                if (cc + 1) != len(code):
-                    self._callbacks['paint_module'](
-                        xpos, ypos, self.quiet_zone, self.background)
-                ypos += self.module_height
-            return self._callbacks['finish']()
 
         def _init(self, code):
             size = self.calculate_size(len(code[0]), len(code), self.dpi)
@@ -310,6 +266,13 @@ if USE_BARCODE:
                     (mm2px(xpos + width, self.dpi),
                      mm2px(ypos + self.module_height, self.dpi))]
             self._draw.rectangle(size, outline=color, fill=color)
+
+        def _paint_text(self, xpos, ypos):
+            font = ImageFont.truetype(FONT, self.font_size * 2)
+            width, height = font.getsize(self.text)
+            pos = (mm2px(xpos, self.dpi) - width // 2,
+                   mm2px(ypos, self.dpi) - height // 4)
+            self._draw.text(pos, self.text, font=font, fill=self.foreground)
 
         def _finish(self):
             return self._image
@@ -550,20 +513,21 @@ def main(args):
     elif args.c:
         if USE_BARCODE == False:
             die("Error: %s" % e_barcode)
-        code = barcode.get(args.c, ' '.join(labeltext), writer=ImageWriter())
-        labelbitmap = code.render({
-            'font_size':
-            0,
-            'vertical_margin':
-            8,
-            'module_height': (lm._MAX_BYTES_PER_LINE * 8) - 16,
-            'module_width':
-            2,
-            'background':
-            'black',
-            'foreground':
-            'white',
-        })
+        bc = barcode.get_barcode_class('code128')(
+            ' '.join(labeltext), writer=ImageWriter())
+        labelbitmap = bc.render(
+            writer_options={
+                'module_height': 30,
+                'module_width': 2,
+                'background': 'black',
+                'foreground': 'white',
+                'vertical_margin': 8,
+                # 'quiet_zone': 0.5,
+                'text_distance': 5,
+                'font_size': 10,
+                'write_text': True,
+                'print_text': True,
+            })
         #labelbitmap.show()
         labelwidth, labelheight = labelbitmap.size
     else:
@@ -604,9 +568,14 @@ def main(args):
     labelrotated = labelbitmap.transpose(Image.ROTATE_270)
     labelstream = labelrotated.tobytes()
     labelstreamrowlength = labelheight / 8 + (1 if labelheight % 8 != 0 else 0)
-    if len(labelstream) / labelstreamrowlength != labelwidth:
-        die('An internal problem was encountered while processing the label '
-            'bitmap!')
+    print(
+        'len(labelstream): {}, labelstreamrowlength: {}, labelwidth: {}, len(labelstream) / labelstreamrowlength: {}'
+        .format(
+            len(labelstream), labelstreamrowlength, labelwidth,
+            len(labelstream) / labelstreamrowlength))
+    # if len(labelstream) / labelstreamrowlength != labelwidth:
+    #     die('An internal problem was encountered while processing the label '
+    #         'bitmap!')
     labelrows = [
         labelstream[i:i + labelstreamrowlength]
         for i in range(0, len(labelstream), labelstreamrowlength)
