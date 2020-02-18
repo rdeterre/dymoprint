@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 # === LICENSE STATEMENT ===
 # Copyright (c) 2011 Sebastian J. Bronner <waschtl@sbronner.com>
@@ -53,7 +53,7 @@ import subprocess
 import sys
 import termios
 import textwrap
-from ConfigParser import SafeConfigParser
+from configparser import ConfigParser
 
 import barcode
 import barcode.writer
@@ -61,11 +61,11 @@ from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 try:
     from pyqrcode import QRCode
-except Exception, e_qrcode:
+except Exception:
     USE_QR = False
 try:
     import barcode
-except Exception, e_barcode:
+except Exception:
     USE_BARCODE = False
 
 
@@ -91,7 +91,7 @@ class DymoLabeler:
         self.response = False
         self.bytesPerLine_ = None
         self.dotTab_ = 0
-        self.dev = open(dev, 'r+')
+        self.dev = open(dev, 'rb+')
         self.maxLines = 200
 
     def sendCommand(self):
@@ -195,7 +195,7 @@ class DymoLabeler:
 
         self.statusRequest()
         response = self.sendCommand()
-        print response
+        print(response)
 
     def printLabel(self, lines, margin=56 * 2):
         """Print the label described by lines. (Automatically split label if
@@ -227,7 +227,7 @@ class DymoLabeler:
             self.skipLines(margin)
         self.statusRequest()
         response = self.sendCommand()
-        print response
+        print(response)
 
 
 PATH = os.path.dirname(os.path.abspath(__file__))
@@ -358,7 +358,7 @@ def access_error(dev):
 
 def read_config(conf_file):
     global FONT_CONFIG
-    conf = SafeConfigParser(FONT_CONFIG)
+    conf = ConfigParser(FONT_CONFIG)
     if not conf.read(conf_file):
         print('# Config file "%s" not found: writing new config file.\n' %
               conf_file)
@@ -377,7 +377,7 @@ def read_config(conf_file):
 
 
 def write_config(conf_file):
-    config = SafeConfigParser()
+    config = ConfigParser()
     # adding sections and keys
     config.add_section('FONTS')
     for key in FONT_CONFIG.keys():
@@ -402,8 +402,9 @@ def scaling(pix, sc):
 
 
 def commandline_arg(bytestring):
-    unicode_string = bytestring.decode(sys.getfilesystemencoding())
-    return unicode_string
+    return bytestring
+    # unicode_string = bytestring.decode(sys.getfilesystemencoding())
+    # return unicode_string
 
 
 def parse_args():
@@ -464,8 +465,7 @@ def main(args):
         die(access_error(dev))
 
     # read config file
-    conf_path = os.path.dirname(sys.argv[0])
-    read_config(conf_path + '/' + CONFIG_FILE)
+    read_config('./' + CONFIG_FILE)
 
     labeltext = args.text
     # select font style and offset from parameter
@@ -480,7 +480,7 @@ def main(args):
     else:
         FONT_FILENAME = FONT_CONFIG['regular']
 
-    if args.u <> None:
+    if args.u is not None:
         if os.path.isfile(args.u):
             FONT_FILENAME = args.u
         else:
@@ -517,7 +517,7 @@ def main(args):
             ' '.join(labeltext), writer=ImageWriter())
         labelbitmap = bc.render(
             writer_options={
-                'module_height': 30,
+                'module_height': 40,
                 'module_width': 2,
                 'background': 'black',
                 'foreground': 'white',
@@ -547,7 +547,7 @@ def main(args):
         labeldraw = ImageDraw.Draw(labelbitmap)
 
         # draw frame into empty image
-        if args.f <> None:
+        if args.f is not None:
             labeldraw.rectangle(((0, 0), (labelwidth - 1, labelheight - 1)),
                                 fill=255)
             labeldraw.rectangle(((fontoffset, fontoffset),
@@ -567,7 +567,8 @@ def main(args):
     # convert the image to the proper matrix for the dymo labeler object
     labelrotated = labelbitmap.transpose(Image.ROTATE_270)
     labelstream = labelrotated.tobytes()
-    labelstreamrowlength = labelheight / 8 + (1 if labelheight % 8 != 0 else 0)
+    labelstreamrowlength = labelheight // 8 + (1
+                                               if labelheight % 8 != 0 else 0)
     print(
         'len(labelstream): {}, labelstreamrowlength: {}, labelwidth: {}, len(labelstream) / labelstreamrowlength: {}'
         .format(
