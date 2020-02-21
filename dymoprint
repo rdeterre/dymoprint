@@ -284,7 +284,7 @@ if USE_BARCODE:
 
 
 def die(message=None):
-    if message: print >> sys.stderr, message
+    if message: print(message)
     sys.exit(1)
 
 
