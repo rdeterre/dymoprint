@@ -27,14 +27,10 @@ DEV_NODE = None
 DEV_NAME = 'Dymo LabelManager PnP'
 #FONT_FILENAME  = '/usr/share/fonts/truetype/ttf-bitstream-vera/Vera.ttf'
 FONT_CONFIG = {
-    'regular':
-    '/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-R.ttf',  # regular font
-    'bold':
-    '/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-B.ttf',  # bold font
-    'italic':
-    '/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-RI.ttf',  # italic font
-    'narrow':
-    '/usr/share/fonts/truetype/ubuntu-font-family/Ubuntu-C.ttf'  # narrow/condensed
+    'regular': '/usr/share/fonts/dejavu/DejaVuSans.ttf',
+    'bold': '/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf',
+    'italic': '/usr/share/fonts/dejavu/DejaVuSans-Italic.ttf',
+    'narrow': '/usr/share/fonts/dejavu/DejaVuSansCondensed.ttf',
 }
 FONT_SIZERATIO = 7. / 8
 #CONFIG_FILE     = '.dymoprint'
@@ -53,7 +49,6 @@ import subprocess
 import sys
 import termios
 import textwrap
-from configparser import ConfigParser
 
 import barcode
 import barcode.writer
@@ -263,8 +258,9 @@ if USE_BARCODE:
 
         def _paint_module(self, xpos, ypos, width, color):
             size = [(mm2px(xpos, self.dpi), mm2px(ypos, self.dpi)),
-                    (mm2px(xpos + width, self.dpi),
-                     mm2px(ypos + self.module_height, self.dpi))]
+                    (mm2px(xpos + width,
+                           self.dpi), mm2px(ypos + self.module_height,
+                                            self.dpi))]
             self._draw.rectangle(size, outline=color, fill=color)
 
         def _paint_text(self, xpos, ypos):
@@ -353,40 +349,6 @@ def access_error(dev):
         'activate the new permissions.', sys.stderr)
 
 
-''' reading config file, input: 'filename' '''
-
-
-def read_config(conf_file):
-    global FONT_CONFIG
-    conf = ConfigParser(FONT_CONFIG)
-    if not conf.read(conf_file):
-        print('# Config file "%s" not found: writing new config file.\n' %
-              conf_file)
-        write_config(conf_file)
-    else:
-        # reading FONTS section
-        if not 'FONTS' in conf.sections():
-            die('! config file "%s" not valid. Please change or remove.' %
-                conf_file)
-        for key in FONT_CONFIG.keys():
-            FONT_CONFIG[key] = conf.get('FONTS', key)
-        # more sections later ..
-
-
-''' writing config file, input: 'filename' '''
-
-
-def write_config(conf_file):
-    config = ConfigParser()
-    # adding sections and keys
-    config.add_section('FONTS')
-    for key in FONT_CONFIG.keys():
-        config.set('FONTS', key, FONT_CONFIG[key])
-    # writing config file
-    with open(conf_file, 'wb') as configfile:
-        config.write(configfile)
-
-
 ''' scaling pixel up, input: (x,y),scale-factor '''
 
 
@@ -409,43 +371,47 @@ def commandline_arg(bytestring):
 
 def parse_args():
     # check for any text specified on the command line
-    parser = argparse.ArgumentParser(
-        description=DESCRIPTION + ' \n Version: ' + VERSION)
-    parser.add_argument(
-        'text',
-        nargs='+',
-        help='Text Parameter, each parameter gives a new line',
-        type=commandline_arg)
+    parser = argparse.ArgumentParser(description=DESCRIPTION +
+                                     ' \n Version: ' + VERSION)
+    parser.add_argument('text',
+                        nargs='+',
+                        help='Text Parameter, each parameter gives a new line',
+                        type=commandline_arg)
     parser.add_argument(
         '-f',
         action="count",
         help='Draw frame around the text, more arguments for thicker frame')
-    parser.add_argument(
-        '-s',
-        choices=['r', 'b', 'i', 'n'],
-        default='r',
-        help='Set fonts style (regular,bold,italic,narrow)')
-    parser.add_argument(
-        '-u', nargs='?', help='Set user font, overrides "-s" parameter')
-    parser.add_argument(
-        '-v', action='store_true', help='Preview label, do not print')
-    parser.add_argument(
-        '-qr',
-        action='store_true',
-        help='Printing the text parameter as QR-code')
-    parser.add_argument(
-        '-c',
-        choices=[
-            'code39', 'code128', 'ean', 'ean13', 'ean8', 'gs1', 'gtin', 'isbn',
-            'isbn10', 'isbn13', 'issn', 'jan', 'pzn', 'upc', 'upca'
-        ],
-        default=False,
-        help='Printing the text parameter as barcode')
-    parser.add_argument(
-        '-m', type=int, help='Override margin (default is 56*2)')
+    parser.add_argument('-s',
+                        choices=['r', 'b', 'i', 'n'],
+                        default='r',
+                        help='Set fonts style (regular,bold,italic,narrow)')
+    parser.add_argument('-u',
+                        nargs='?',
+                        help='Set user font, overrides "-s" parameter')
+    parser.add_argument('-v',
+                        action='store_true',
+                        help='Preview label, do not print')
+    parser.add_argument('-qr',
+                        action='store_true',
+                        help='Printing the text parameter as QR-code')
+    parser.add_argument('-c',
+                        choices=[
+                            'code39', 'code128', 'ean', 'ean13', 'ean8', 'gs1',
+                            'gtin', 'isbn', 'isbn10', 'isbn13', 'issn', 'jan',
+                            'pzn', 'upc', 'upca'
+                        ],
+                        default=False,
+                        help='Printing the text parameter as barcode')
+    parser.add_argument('-m',
+                        type=int,
+                        help='Override margin (default is 56*2)')
+    parser.add_argument('-l',
+                        type=int,
+                        help='Line height (defaults to max available space)')
     #parser.add_argument('-t',type=int,choices=[6, 9, 12],default=12,help='Tape size: 6,9,12 mm, default=12mm')
-    parser.add_argument(
-        '-pdb', action='store_true', help='Run pdb if an exception occurs')
+    parser.add_argument('-pdb',
+                        action='store_true',
+                        help='Run pdb if an exception occurs')
     return parser.parse_args()
 
 
@@ -463,9 +429,6 @@ def main(args):
         lm = DymoLabeler(dev)
     except IOError:
         die(access_error(dev))
-
-    # read config file
-    read_config('./' + CONFIG_FILE)
 
     labeltext = args.text
     # select font style and offset from parameter
@@ -513,8 +476,8 @@ def main(args):
     elif args.c:
         if USE_BARCODE == False:
             die("Error: %s" % e_barcode)
-        bc = barcode.get_barcode_class('code128')(
-            ' '.join(labeltext), writer=ImageWriter())
+        bc = barcode.get_barcode_class('code128')(' '.join(labeltext),
+                                                  writer=ImageWriter())
         labelbitmap = bc.render(
             writer_options={
                 'module_height': 40,
@@ -539,6 +502,8 @@ def main(args):
         # create an empty label image
         labelheight = lm._MAX_BYTES_PER_LINE * 8
         lineheight = float(labelheight) / len(labeltext)
+        if args.l is not None:
+            lineheight = int(args.l)
         fontsize = int(round(lineheight * FONT_SIZERATIO))
         font = ImageFont.truetype(FONT_FILENAME, fontsize)
         labelwidth = max(font.getsize(line)[0]
@@ -551,13 +516,15 @@ def main(args):
             labeldraw.rectangle(((0, 0), (labelwidth - 1, labelheight - 1)),
                                 fill=255)
             labeldraw.rectangle(((fontoffset, fontoffset),
-                                 (labelwidth - (fontoffset + 1),
-                                  labelheight - (fontoffset + 1))),
+                                 (labelwidth - (fontoffset + 1), labelheight -
+                                  (fontoffset + 1))),
                                 fill=0)
 
         # write the text into the empty image
         for i, line in enumerate(labeltext):
             lineposition = int(round(i * lineheight))
+            lineposition = labelheight / 2 - (len(labeltext) *
+                                              lineheight) / 2 + i * lineheight
             labeldraw.text((fontoffset, lineposition),
                            line,
                            font=font,
@@ -571,9 +538,8 @@ def main(args):
                                                if labelheight % 8 != 0 else 0)
     print(
         'len(labelstream): {}, labelstreamrowlength: {}, labelwidth: {}, len(labelstream) / labelstreamrowlength: {}'
-        .format(
-            len(labelstream), labelstreamrowlength, labelwidth,
-            len(labelstream) / labelstreamrowlength))
+        .format(len(labelstream), labelstreamrowlength, labelwidth,
+                len(labelstream) / labelstreamrowlength))
     # if len(labelstream) / labelstreamrowlength != labelwidth:
     #     die('An internal problem was encountered while processing the label '
     #         'bitmap!')
