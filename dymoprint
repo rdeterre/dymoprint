@@ -412,6 +412,9 @@ def parse_args():
     parser.add_argument('-pdb',
                         action='store_true',
                         help='Run pdb if an exception occurs')
+    parser.add_argument('-d',
+                        action='store_true',
+                        help='Make output smaller')
     return parser.parse_args()
 
 
@@ -478,16 +481,21 @@ def main(args):
             die("Error: %s" % e_barcode)
         bc = barcode.get_barcode_class('code128')(' '.join(labeltext),
                                                   writer=ImageWriter())
+        module_width = 2
+        font_size = 10
+        if args.d:
+            module_width = 1
+            font_size = 8
         labelbitmap = bc.render(
             writer_options={
                 'module_height': 40,
-                'module_width': 2,
+                'module_width': module_width,
                 'background': 'black',
                 'foreground': 'white',
                 'vertical_margin': 8,
                 # 'quiet_zone': 0.5,
                 'text_distance': 5,
-                'font_size': 10,
+                'font_size': font_size,
                 'write_text': True,
                 'print_text': True,
             })
@@ -502,6 +510,8 @@ def main(args):
         # create an empty label image
         labelheight = lm._MAX_BYTES_PER_LINE * 8
         lineheight = float(labelheight) / len(labeltext)
+        if args.d:
+            lineheight = int(30)
         if args.l is not None:
             lineheight = int(args.l)
         fontsize = int(round(lineheight * FONT_SIZERATIO))
